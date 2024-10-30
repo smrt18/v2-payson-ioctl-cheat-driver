@@ -89,7 +89,21 @@ INT32 GetWindowsVersion() {
         return 0x0388;
     }
 }
+INT64 retrieve_cr3(PEPROCESS Process)
+{
+    if (!Process)
+    {
+        return 0;
+    }
 
+    KAPC_STATE apc_state{ };
+
+    KeStackAttachProcess(Process, &apc_state);
+    uintptr_t saved_dirbase = __readcr3();
+    KeUnstackDetachProcess(&apc_state);
+
+    return saved_dirbase;
+}
 UINT64 GetProcessCr3(PEPROCESS Process) {
     if (!Process) return 0;
     uintptr_t process_dirbase = *(uintptr_t*)((UINT8*)Process + 0x28);
@@ -173,14 +187,13 @@ NTSTATUS HandleReadRequest(PReadWriteRequest Request) {
     PsLookupProcessByProcessId((HANDLE)Request->ProcessId, &Process);
     if (!Process)
         return STATUS_UNSUCCESSFUL;
-
-    ULONGLONG ProcessBase = GetProcessCr3(Process);
+    
     ObDereferenceObject(Process);
 
     SIZE_T Offset = NULL;
     SIZE_T TotalSize = Request->Size;
 
-    INT64 PhysicalAddress = TranslateLinearAddress(ProcessBase, (ULONG64)Request->Address + Offset);
+    INT64 PhysicalAddress = TranslateLinearAddress(retrieve_cr3(Process), (ULONG64)Request->Address + Offset);
     if (!PhysicalAddress)
         return STATUS_UNSUCCESSFUL;
 
