@@ -1,0 +1,15 @@
+INT64 retrieve_cr3(PEPROCESS Process)
+{
+    if (!Process)
+    {
+        return 0;
+    }
+
+    KAPC_STATE apc_state{ };
+
+    KeStackAttachProcess(Process, &apc_state);
+    uintptr_t saved_dirbase = __readcr3();
+    KeUnstackDetachProcess(&apc_state);
+
+    return saved_dirbase;
+}
